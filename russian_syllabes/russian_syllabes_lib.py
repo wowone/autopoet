@@ -1,9 +1,9 @@
-from symbols_dictionary import *
+from russian_syllabes.symbols_dictionary import vowels, consonants, deaf_consonants, sonoric_consonants, special
 
 
 def get_vowel_index(word, index):
     for i in range(index, len(word)):
-        if is_vowel(word[i]):
+        if word[i] in vowels:
             return i
     return len(word)
 
@@ -29,7 +29,7 @@ def split_syllabes(word):
 
         if next_vowel_position - position >= 2 \
                 and word[position + 1] in sonoric_consonants \
-                and word[position + 2] in deaf:
+                and word[position + 2] in deaf_consonants:
             syll += word[position + 1: position + 2]
             position += 1
         elif next_vowel_position - position >= 2 \
