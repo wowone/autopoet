@@ -19,28 +19,31 @@ class Node:
     def __init__(self, index=None, letter=None):
         self.index = index
         self.letter = letter
-        self.phoneme = None
+        self.phoneme = letter
         self.type = None
         self.soft = None
+        self.voice = None
         self.stressed = None
         self.prev = None
         self.next = None
+        self.yot = None
 
 
 class LingTools:
     def __init__(self):
         self.vowels = 'аеёиоуыэюя'
         self.consonants = 'бвгджзйклмнпрстфхцчшщъь'
+        self.vowel_phonemes = pd.read_csv('phonetic_data/vowels.csv', index_col='name', sep=';')
+        self.consonant_phonemes = pd.read_csv('phonetic_data/cons_.csv', index_col='name')
+        self.phoneme_properties = pd.read_csv('phonetic_data/phoneme_properties.csv', index_col='name')
 
         self.dict = {}
-        with open('../yadisk/stresses.csv') as f:
+        with open('../yadisk/stress_data.csv') as f:
             for row in csv.reader(f, delimiter=','):
                 self.dict[row[0]] = {
-                    'stressed': row[1],
-                    'stressed_syllable': row[2]
+                    # 'stressed': row[1],
+                    'stressed_syllable': abs(int(row[1]))
                 }
-
-        self.vowel_phonemes = pd.read_csv('phonetic_data/vowels.csv', index_col='name', sep=';')
 
     def split_syllables(self, word):
         syllables = []
@@ -72,14 +75,22 @@ class LingTools:
     def _get_nodes(self, word, stressed_vowel):
         rword = list(reversed(word))
         prev_item = Node(0, rword[0])
+        if rword[0] in self.vowels:
+            prev_item.type = 'v'
+        elif rword[0] in self.consonants:
+            prev_item.type = 'c'
+        elif rword[0] in ['ь', 'ъ']:
+            prev_item.type = 'm'
+        else:
+            raise ValueError('Unknown token ' + rword[0])
         head = prev_item
-        n_vowel = 0
-        for i, letter in rword[1:]:
-            new_item = Node(i, letter)
+        n_vowel = 1 if rword[0] in self.vowels else 0
+        for i, letter in enumerate(rword[1:]):
+            new_item = Node(i + 1, letter)
             if letter in self.vowels:
                 new_item.type = 'v'
                 n_vowel += 1
-                new_item.stressed = (n_vowel == abs(stressed_vowel))
+                new_item.stressed = (n_vowel == stressed_vowel)
             elif letter in self.consonants:
                 new_item.type = 'c'
             elif letter in ['ь', 'ъ']:
@@ -189,32 +200,101 @@ class LingTools:
                 else:
                     p.phoneme = self.vowel_phonemes.loc[letter]['vn_hard']
 
-    def _get_consonant_phoneme(self, pointer):
-        pass
+    def _get_consonant_phoneme(self, p, vcd):
+        if p.letter in ['ч', 'ш', 'щ', 'ж']:
+            p.phoneme = self.consonant_phonemes.loc[p.letter]['hard']
+            if p.soft is True:
+                p.soft = False
+            if p.letter in ['ч', 'щ']:
+                if p.voice is not None:
+                    p.voice = None
+        if p.voice is True:
+            p.phoneme = self.consonant_phonemes.loc[p.letter]['voice']
+        elif p.voice is False:
+            p.phoneme = self.consonant_phonemes.loc[p.letter]['no_voice']
 
-    def get_transcription(self, word):
+        if vcd is True:
+            if p.prev is None:
+                p.phoneme = self.consonant_phonemes.loc[p.letter]['voiced']
+        else:
+            if p.prev is None:
+                if p.next is not None:
+                    p.next.voice = False
+                if self.phoneme_properties.loc[p.phoneme]['vcd'] == '+':
+                    p.phoneme = self.consonant_phonemes.loc[p.letter]['no_voice']
+
+        if p.next is not None:
+            # оглушение следующих
+            if p.phoneme in self.phoneme_properties.index\
+                    and self.phoneme_properties.loc[p.phoneme]['vcd'] == '-'\
+                    and p.next is not None:
+                if p.next.phoneme in self.phoneme_properties.index\
+                        and self.phoneme_properties.loc[p.next.phoneme]['son'] == '-':
+                    p.next.voice = False
+            # озвончение следующих
+            elif p.phoneme in self.phoneme_properties.index\
+                    and self.phoneme_properties.loc[p.phoneme]['son'] == '-'\
+                    and p.phoneme not in ['в', "в’"]\
+                    and self.phoneme_properties.loc[p.phoneme]['vcd'] == '+':
+                p.next.voice = True
+
+        if p.prev is not None:
+            if p.prev.phoneme == 'к' and p.letter == 'г':
+                p.phoneme = 'х'
+            elif p.prev.letter in [p.letter, p.letter + "’"]:
+                p.phoneme = ''
+
+    @staticmethod
+    def _get_transcription_from_structure(p):
+        res = []
+        while p is not None:
+            res.append(p.phoneme)
+            p = p.next
+        return res
+
+    def get_transcription(self, word, vcd=False):
         stressed_syllable = self.dict[word]['stressed_syllable']
         word = squeeze_sibilants(word)
         head = self._get_nodes(word, stressed_syllable)
-        vowel_num = 0, 0
+        vowel_num = 0
         pointer = head
         length = len(word)
         special = False
-        while pointer.next is not None:
+        while pointer is not None:
             if pointer.type == 'v':
                 vowel_num += 1
-                phoneme = self._get_vowel_phoneme(pointer, vowel_num, stressed_syllable, length)
+                self._get_vowel_phoneme(pointer, vowel_num, stressed_syllable, length)
                 if pointer.yot is True and pointer.index == 0 and pointer.stressed is False:
                     special = True
             elif pointer.type == 'm':
-                phoneme = ''
+                pointer.phoneme = ''
                 if pointer.letter == 'ь':
                     pointer.next.soft = True
             elif pointer.type == 'c':
-                phoneme = self._get_consonant_phoneme(pointer)
+                if pointer.letter == 'й':
+                    pointer.phoneme = 'ṷ'
+                self._get_consonant_phoneme(pointer, vcd)
             else:
-                phoneme = ''
-            pointer.phoneme = phoneme
+                raise ValueError('Unknown character ' + pointer.letter)
+
+            if pointer.yot is True:
+                if special:
+                    pointer.phoneme = pointer.phoneme + 'ṷ'
+                    special = False
+                else:
+                    pointer.phoneme = pointer.phoneme + 'j'
 
             pointer = pointer.next
+        return self._get_transcription_from_structure(head)
 
+
+# lt = LingTools()
+# print(lt.get_transcription('мама'))
+
+import sys
+if __name__ == '__main__':
+    lt = LingTools()
+    if len(sys.argv) >= 3:
+        print(lt.get_transcription(sys.argv[1], stress=int(sys.argv[2])))
+    else:
+        print(lt.get_transcription(sys.argv[1]))
