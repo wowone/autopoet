@@ -294,15 +294,3 @@ class LingTools:
                 else:
                     item.phoneme = 'j' + item.phoneme
         return self._get_transcription_from_structure(word)
-
-
-# lt = LingTools()
-# print(lt.get_transcription('тяжесть'))
-
-import sys
-if __name__ == '__main__':
-    lt = LingTools()
-    if len(sys.argv) >= 3:
-        print(lt.get_transcription(sys.argv[1], stress=int(sys.argv[2])))
-    else:
-        print(lt.get_transcription(sys.argv[1]))
