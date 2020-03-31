@@ -4,17 +4,6 @@ import pandas as pd
 import re
 
 
-def squeeze_sibilants(word):
-    word = re.sub('(с|ст|сс|з|зд|ж|ш)ч', 'щ', word)
-    word = re.sub('(с|зд|з)щ', 'щ', word)
-    word = re.sub('(тч|тш|дш)', 'ч', word)
-    word = re.sub('(с|з)ш', 'ш', word)
-    word = re.sub('сж', 'ж', word)
-    word = re.sub('(т|ть|д)с', 'ц', word)
-    word = re.sub('(ст|сть)с', 'ц', word)
-    return word
-
-
 class Letter:
     def __init__(self, letter=None):
         self.index = None
@@ -107,6 +96,17 @@ class LingTools:
                 current_syllable['has_vowel'] = True
         syllables.append(''.join(current_syllable['syl']))
         return syllables
+
+    @staticmethod
+    def _squeeze_sibilants(word):
+        word = re.sub('(с|ст|сс|з|зд|ж|ш)ч', 'щ', word)
+        word = re.sub('(с|зд|з)щ', 'щ', word)
+        word = re.sub('(тч|тш|дш)', 'ч', word)
+        word = re.sub('(с|з)ш', 'ш', word)
+        word = re.sub('сж', 'ж', word)
+        word = re.sub('(т|ть|д)с', 'ц', word)
+        word = re.sub('(ст|сть)с', 'ц', word)
+        return word
 
     def _insert_yot(self, word, item, position, letter=None):
         if letter is None:
@@ -215,10 +215,10 @@ class LingTools:
             if item.soft is True:
                 item.soft = False
             if item.letter in ['ч', 'щ']:
-                if item.voice is not None:
-                    item.voice = None
+                item.voice = None
+
         if item.voice is True:
-            item.phoneme = self.consonant_phonemes.loc[item.letter]['voice']
+            item.phoneme = self.consonant_phonemes.loc[item.letter]['voiced']
         elif item.voice is False:
             item.phoneme = self.consonant_phonemes.loc[item.letter]['no_voice']
 
@@ -253,13 +253,22 @@ class LingTools:
             elif item.prev.letter in [item.letter, item.letter + "’"]:
                 item.phoneme = ''
 
-    @staticmethod
-    def _get_transcription_from_structure(word):
-        return [letter.phoneme for letter in word]
+        if item.soft is True:
+            item.phoneme = self.consonant_phonemes.loc[item.letter]['soft']
 
-    def get_transcription(self, word, vcd=False):
-        stressed_syllable = self.dict[word]['stressed_syllable']
-        word = squeeze_sibilants(word)
+    @staticmethod
+    def _get_transcription_from_structure(word, mode='joined'):
+        res = [letter.phoneme for letter in word]
+        if mode == 'joined':
+            return ''.join(res)
+        elif mode == 'separated':
+            return res
+        else:
+            raise ValueError('Unexpected mode argument + "' + mode + '". Expected "joined" or "separated"')
+
+    def get_transcription(self, word, stress=None, vcd=False):
+        stressed_syllable = self.dict[word]['stressed_syllable'] if stress is None else stress
+        word = self._squeeze_sibilants(word)
         word = Word(word, stressed_syllable)
         special = False
         for item in word.iterate_backward():
@@ -280,13 +289,13 @@ class LingTools:
 
             if item.yot is True:
                 if special:
-                    item.phoneme = item.phoneme + 'ṷ'
+                    item.phoneme = 'ṷ' + item.phoneme
                     special = False
                 else:
-                    item.phoneme = item.phoneme + 'j'
+                    item.phoneme = 'j' + item.phoneme
         return self._get_transcription_from_structure(word)
 
-#
+
 # lt = LingTools()
 # print(lt.get_transcription('тяжесть'))
 

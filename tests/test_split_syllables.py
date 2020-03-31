@@ -1,7 +1,8 @@
-from .. import lingtools as lt
+from .. import lingtools
 
 
 def test_split_syllables():
+    lt = lingtools.LingTools()
     assert '-'.join(lt.split_syllables('вова')) == 'во-ва'
     assert '-'.join(lt.split_syllables('футбол')) == 'фут-бол'
     assert '-'.join(lt.split_syllables('песок')) == 'пе-сок'
