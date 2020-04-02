@@ -1,5 +1,6 @@
 import copy
 import csv
+import numpy as np
 import pandas as pd
 import re
 
@@ -59,9 +60,11 @@ class LingTools:
         self.vowels = 'аеёиоуыэюя'
         self.consonants = 'бвгджзйклмнпрстфхцчшщъь'
         self.vowel_phonemes = pd.read_csv('phonetic_data/vowels.csv', index_col='name', sep=';')
-        self.consonant_phonemes = pd.read_csv('phonetic_data/cons_.csv', index_col='name')
+        self.consonant_phonemes = pd.read_csv('phonetic_data/consonants.csv', index_col='name')
         self.phoneme_properties = pd.read_csv('phonetic_data/phoneme_properties.csv', index_col='name')
+        self.stop_words = pd.read_csv('phonetic_data/stop_words.txt', header=None)[0].to_list()
 
+        # TODO: Remove from the repository
         self.dict = {}
         with open('../yadisk/stress_data.csv') as f:
             for row in csv.reader(f, delimiter=','):
@@ -266,8 +269,16 @@ class LingTools:
         else:
             raise ValueError('Unexpected mode argument + "' + mode + '". Expected "joined" or "separated"')
 
-    def get_transcription(self, word, stress=None, vcd=False):
-        stressed_syllable = self.dict[word]['stressed_syllable'] if stress is None else stress
+    def get_transcription(self, word, stress=None, stop=False, vcd=False):
+        if stress is not None:
+            stressed_syllable = stress
+        elif stop is True:
+            stressed_syllable = -1
+        elif word in self.dict:
+            stressed_syllable = self.dict[word]['stressed_syllable']
+        else:
+            stressed_syllable = np.random.randint(1, len(re.findall('[аеёиоуыэюя]', word)) + 1)
+
         word = self._squeeze_sibilants(word)
         word = Word(word, stressed_syllable)
         special = False
@@ -294,3 +305,18 @@ class LingTools:
                 else:
                     item.phoneme = 'j' + item.phoneme
         return self._get_transcription_from_structure(word)
+
+    def get_phrase_transcription(self, phrase):
+        res = []
+        words = phrase.split(' ')
+        for i, word in enumerate(words):
+            stop, vcd = False, False
+            if word in self.stop_words:
+                if len(words) > 1:
+                    stop = True
+                if i != len(words) - 1\
+                        and word[0] in self.phoneme_properties.index\
+                        and self.phoneme_properties.loc[word[0]]['vcd'] == '+':
+                    vcd = True
+            res.append(self.get_transcription(word, stop=stop, vcd=vcd))
+        return ' '.join(res)
