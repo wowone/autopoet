@@ -21,8 +21,7 @@ import rhythm.rhythm_handler
 
 
 class Model:
-    def __init__(self, stress_engine, seq_size, batch_size, my_tokenizer):
-        self.engine = stress_engine
+    def __init__(self, seq_size, batch_size, my_tokenizer):
         self.seq_size = seq_size
         self.batch_size = batch_size
         self.tokenizer = my_tokenizer
@@ -129,6 +128,9 @@ class Model:
     def save_model(self, filename='model.h5'):
         self.model.save(filename)
 
+    def load_model(self, model):
+        self.model = model
+
 
 # TODO: Move function to lingtools
 def clean_text(text):
@@ -151,19 +153,11 @@ def build_sequences(text, words, seq_size):
 if __name__ == '__main__':
     # Local env:
     path_to_text = "../pushkin.txt"
-    path_to_stress_model = "~/AutoPoetry/stress_ru.h5"
-    path_to_stress_dict = "~/AutoPoetry/zaliznyak.txt"
 
     # model configs:
     seq_size = 32
     batch_size = 50
 
-    # Load stress_engine:
-    # Takes long time
-    print('Engine loading...')
-    engine = Engine(language='ru')
-    engine.load(path_to_stress_model, path_to_stress_dict)
-    print('Engine loaded')
 
     # Load text_data:
     with open(path_to_text, encoding='utf-8') as f:
@@ -182,7 +176,7 @@ if __name__ == '__main__':
     next_words = list(map(lambda x: tokenizer.word_to_id[x], next_words))
 
     # Create model
-    my_model = Model(engine, seq_size, batch_size, tokenizer)
+    my_model = Model(seq_size, batch_size, tokenizer)
 
     # separate into input and output
     sequences = np.array(sequences)
