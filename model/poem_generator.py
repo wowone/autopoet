@@ -212,9 +212,6 @@ if __name__ == '__main__':
 		«Уж будешь мой», – он сам с собой ворчит."""
     seed = seed.lower()
     seed = lang.clean_text(seed)
-    #result = generate_sequence(model, 32, seed, 4, masks, rhythm_handler, words, footness=4,
-    #                           rhyme_module=4, rhyme_dict={0: -1, 1: -1, 2: 0, 3: 1})
-    #print(result)
 
     generator = SeqGenerator(model, tokenizer, 32, masks, rhythm_handler, words, {0: -1, 1: -1, 2: 0, 3: 1}, 3)
     generator.fit_seed(seed)

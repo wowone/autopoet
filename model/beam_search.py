@@ -145,7 +145,7 @@ class SeqGenerator:
                 # TODO: is_stressed?
                 stress_count += 1
         for i, beam in enumerate(self.beams):
-`            print(f"Beam number {i} once wrote:")
+            print(f"Beam number {i} once wrote:")
             print(beam.str_poem)
 
 
