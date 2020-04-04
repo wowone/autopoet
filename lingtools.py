@@ -1,5 +1,6 @@
 import copy
 import csv
+import numpy as np
 import pandas as pd
 import re
 
@@ -45,7 +46,7 @@ class Word:
             l.prev = self.word[self.length - i] if i > 0 else None
             l.next = self.word[self.length - i - 2] if i < self.length - 1 else None
 
-    def iterate_backward(self):
+    def __reversed__(self):
         for i in range(self.length - 1, -1, -1):
             yield self.word[i]
 
@@ -59,16 +60,13 @@ class LingTools:
         self.vowels = 'аеёиоуыэюя'
         self.consonants = 'бвгджзйклмнпрстфхцчшщъь'
         self.vowel_phonemes = pd.read_csv('phonetic_data/vowels.csv', index_col='name', sep=';')
-        self.consonant_phonemes = pd.read_csv('phonetic_data/cons_.csv', index_col='name')
+        self.consonant_phonemes = pd.read_csv('phonetic_data/consonants.csv', index_col='name')
         self.phoneme_properties = pd.read_csv('phonetic_data/phoneme_properties.csv', index_col='name')
+        self.stop_words = pd.read_csv('phonetic_data/stop_words.txt', header=None)[0].to_list()
+        self.phoneme_distance = pd.read_csv('phonetic_data/distance_matrix_jaccard.csv', index_col='name')
 
-        self.dict = {}
-        with open('../yadisk/stress_data.csv') as f:
-            for row in csv.reader(f, delimiter=','):
-                self.dict[row[0]] = {
-                    # 'stressed': row[1],
-                    'stressed_syllable': abs(int(row[1]))
-                }
+        # TODO: Remove the heavy file from the repository
+        self.stresses = pd.read_csv('../yadisk/stress_data.csv', header=None, index_col=0)[1].to_dict()
 
     def split_syllables(self, word):
         syllables = []
@@ -257,21 +255,30 @@ class LingTools:
             item.phoneme = self.consonant_phonemes.loc[item.letter]['soft']
 
     @staticmethod
-    def _get_transcription_from_structure(word, mode='joined'):
-        res = [letter.phoneme for letter in word]
-        if mode == 'joined':
-            return ''.join(res)
-        elif mode == 'separated':
-            return res
-        else:
-            raise ValueError('Unexpected mode argument + "' + mode + '". Expected "joined" or "separated"')
+    def _isolate_yot_phoneme(transcription):
+        phonemes = []
+        for phoneme in transcription:
+            if re.match('[jṷ]', phoneme) and len(phoneme) > 1:
+                phonemes.append(phoneme[0])
+                phonemes.append(phoneme[1])
+            else:
+                phonemes.append(phoneme)
+        return phonemes
 
-    def get_transcription(self, word, stress=None, vcd=False):
-        stressed_syllable = self.dict[word]['stressed_syllable'] if stress is None else stress
-        word = self._squeeze_sibilants(word)
-        word = Word(word, stressed_syllable)
+    def get_transcription(self, word, stress=None, stop=False, vcd=False, get_tail=False, as_string=False):
+        if stress is not None:
+            stressed_syllable = stress
+        elif stop is True:
+            stressed_syllable = -1
+        elif word in self.stresses:
+            stressed_syllable = self.stresses[word]
+        else:
+            stressed_syllable = np.random.randint(1, len(re.findall('[аеёиоуыэюя]', word)) + 1)
+
+        word_initial = self._squeeze_sibilants(word)
+        word = Word(word_initial, stressed_syllable)
         special = False
-        for item in word.iterate_backward():
+        for item in reversed(word):
             if item.type == 'v':
                 self._set_vowel_phoneme(word, item)
                 if item.yot is True and item.index == 0 and item.stressed is False:
@@ -293,4 +300,88 @@ class LingTools:
                     special = False
                 else:
                     item.phoneme = 'j' + item.phoneme
-        return self._get_transcription_from_structure(word)
+
+        syllables = self.split_syllables(word_initial)
+        tail_length = len(''.join(syllables[-stressed_syllable:]))
+        transcription = [w.phoneme for w in word]
+        tail = transcription[-tail_length:]
+
+        transcription = self._isolate_yot_phoneme(transcription)
+        tail = self._isolate_yot_phoneme(tail)
+
+        if as_string is True:
+            transcription = ''.join(transcription)
+            tail = ''.join(tail)
+
+        if get_tail is True:
+            return transcription, tail
+        return transcription
+
+    def get_phrase_transcription(self, phrase, as_string=False):
+        res = []
+        words = phrase.split(' ')
+        for i, word in enumerate(words):
+            stop, vcd = False, False
+            if word in self.stop_words:
+                if len(words) > 1:
+                    stop = True
+                if i != len(words) - 1\
+                        and word[0] in self.phoneme_properties.index\
+                        and self.phoneme_properties.loc[word[0]]['vcd'] == '+':
+                    vcd = True
+            res.append(self.get_transcription(word, stop=stop, vcd=vcd, as_string=as_string))
+        if as_string is False:
+            return res
+        return ' '.join(res)
+
+    def _set_phoneme_distance(self):
+        dist_matrix = []
+        for phoneme1 in self.phoneme_properties.index:
+            row = []
+            coord1 = self.phoneme_properties.loc[phoneme1].dropna()
+            for phoneme2 in self.phoneme_properties.index:
+                coord2 = self.phoneme_properties.loc[phoneme2].dropna()
+                common_index = coord1.index & coord2.index
+                distance = 1 - (coord1[common_index] == coord2[common_index]).sum() / max(len(coord1), len(coord2))
+                row.append(distance)
+            dist_matrix.append(row)
+        self.phoneme_distance = pd.DataFrame(dist_matrix,
+                                             index=self.phoneme_properties.index,
+                                             columns=self.phoneme_properties.index)
+        # self.phoneme_distance.to_csv('phonetic_data/distance_matrix_jaccard.csv', float_format='%.3f')
+
+    def get_rhyme_scores(self, word0, words, debug=False):
+        transcription0, tail0 = self.get_transcription(word0, get_tail=True)
+        result = []
+        for word1 in words:
+            transcription1, tail1 = self.get_transcription(word1, get_tail=True)
+            penalty = 0
+            min_len, max_len = min(len(tail0), len(tail1)), max(len(tail0), len(tail1))
+            for i in range(min_len):
+                penalty += self.phoneme_distance.loc[tail0[i], tail1[i]]
+            for i in range(min_len, max_len):
+                penalty += 1
+            result.append([word0, word1, transcription0, transcription1, penalty])
+
+        if debug is True:
+            res = pd.DataFrame(result, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
+            with pd.option_context('display.max_rows', 100):
+                print(res.sort_values('score').head(100))
+        return result
+
+
+# if __name__ == '__main__':
+#     lt = LingTools()
+#
+#     word = 'борода'
+#     words = [
+#         'борода',
+#         'провода',
+#         'вражда',
+#         'борта',
+#         'вождя',
+#         'ладах',
+#         'морс'
+#     ]
+#
+#     res = lt.get_rhyme_scores(word, words, debug=True)
