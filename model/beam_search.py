@@ -79,7 +79,8 @@ class SeqGenerator:
         self.stress_masks = stress_masks
         self.rhyme_dict = rhyme_dict
         self.rhyme_module = len(rhyme_dict)
-        self.beams = [Beam(self)] * beam_size
+        self.beams = []
+        self.beam_size = beam_size
 
     def fit_seed(self, seed):
         self.seed = seed
@@ -104,8 +105,6 @@ class SeqGenerator:
             weigths.update()
             beam_update()
         """
-        for beam in self.beams:
-            beam.fit(self.seed)
         for line_index in range(lines_len):
             stress_count = 0
             for beam in self.beams:
@@ -115,11 +114,18 @@ class SeqGenerator:
                 weigths = []
                 is_final = footness - 1 == stress_count
                 line = line_index % self.rhyme_module
-                for i, beam in enumerate(self.beams):
-                    beam.step(line, is_final)
-                    beam_weights = beam.weights
-                    weigths += list(map(lambda x: (i, x), beam_weights))
-                weigths = sorted(weigths, key=lambda x: x[1][1])[-len(self.beams):]
+                if not self.beams:
+                    start_beam = Beam(self)
+                    start_beam.fit(self.seed)
+                    start_beam.step(line, is_final)
+                    weigths += list(map(lambda x: (0, x), start_beam.weights))
+                    self.beams = [start_beam]
+                else:
+                    for i, beam in enumerate(self.beams):
+                        beam.step(line, is_final)
+                        beam_weights = beam.weights
+                        weigths += list(map(lambda x: (i, x), beam_weights))
+                weigths = sorted(weigths, key=lambda x: x[1][1])[-self.beam_size:]
                 new_beams = []
                 for (i, beam_inf) in weigths:
                     old_beam = self.beams[i]
@@ -130,14 +136,16 @@ class SeqGenerator:
                     new_beam.str_poem = old_beam.str_poem
                     new_beam.last_words = old_beam.last_words
                     new_beam.update(line, is_final)
-
-                    del old_beam  # kill the beam?
                     new_beams.append(new_beam)
+
+                for beam in self.beams:
+                    del beam
+
                 self.beams = new_beams
                 # TODO: is_stressed?
                 stress_count += 1
         for i, beam in enumerate(self.beams):
-            print(f"Beam number {i} once wrote:")
+`            print(f"Beam number {i} once wrote:")
             print(beam.str_poem)
 
 
@@ -153,6 +161,7 @@ class Beam:
         self.neutral_mask = np.array([1] * handler.dict_len)
         self.weights = []
         self.beam_weight = 0
+        self.prob_max = 0
 
     def fit(self, seed):
         self.poem = seed
@@ -179,6 +188,7 @@ class Beam:
         next_seqs = list(map(lambda x: self.poem + ' ' + x, self.handler.words))
         next_weights = np.add(np.log(probas), np.array([self.beam_weight] * len(probas)))
         self.weights = list(zip(next_seqs, next_weights))
+        self.prob_max = np.max(np.array(list(map(lambda x: x[1], self.weights))))
 
     def update(self, line, is_final):
         predicted_word = self.poem.split(' ')[-1]
