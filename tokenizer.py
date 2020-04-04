@@ -1,3 +1,5 @@
+import collections
+
 class MyTokenizer:
     def __init__(self, clean_text, word_tokenizer):
         self.id_to_word = {}
@@ -15,6 +17,7 @@ class MyTokenizer:
     def fit(self, text_to_fit):
         text_to_fit = self.cleaner(text_to_fit)
         tokens = set(self.tokenizer(text_to_fit))
+        tokens = sorted(tokens)
         self.id_to_word = {i: v for i, v in enumerate(tokens)}
         self.word_to_id = {v: i for i, v in enumerate(tokens)}
         self.vocab_size = len(self.word_to_id)
