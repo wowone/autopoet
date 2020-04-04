@@ -19,7 +19,7 @@ def generate_probas(preds, temperature):
     preds = np.log(preds) / temperature
     exp_preds = np.exp(preds)
     preds = exp_preds / np.sum(exp_preds)
-    # probas = np.random.multinomial(1, preds, 1)  # Why multinomial?
+    #probas = np.random.multinomial(1, preds, 1)  # Why multinomial?
     return preds
 
 
@@ -146,6 +146,7 @@ class SeqGenerator:
                 stress_count += 1
         for i, beam in enumerate(self.beams):
             print(f"Beam number {i} once wrote:")
+            print(f"poem weight: {beam.beam_weight}")
             print(beam.str_poem)
 
 

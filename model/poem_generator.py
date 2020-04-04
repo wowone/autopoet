@@ -215,4 +215,4 @@ if __name__ == '__main__':
 
     generator = SeqGenerator(model, tokenizer, 32, masks, rhythm_handler, words, {0: -1, 1: -1, 2: 0, 3: 1}, 3)
     generator.fit_seed(seed)
-    generator.generate_poem(1, footness=2)
+    generator.generate_poem(4, footness=4)
