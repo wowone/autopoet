@@ -1,33 +1,25 @@
+import logging
 import re
-import nltk
-from random import randint
-from nltk.tokenize import word_tokenize
-from rupo.api import Engine
 import numpy as np
-from pickle import dump
-from keras.preprocessing.text import Tokenizer
-from keras.utils import to_categorical
-from keras.models import Sequential
 from keras.callbacks import LambdaCallback
+from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import Embedding
-from random import randint
-from pickle import load
-from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
-import tokenizer
-import rhythm.rhythm_handler
+from keras.utils import to_categorical
 
 
 class Model:
-    def __init__(self, seq_size, batch_size, my_tokenizer):
-        self.seq_size = seq_size
+    def __init__(self, seq_size, batch_size, tokenizer):
+        self.sequence_size = seq_size
         self.batch_size = batch_size
-        self.tokenizer = my_tokenizer
+        self.tokenizer = tokenizer
         self.model = None
+        self.x_test = None
+        self.y_test = None
 
-    def shuffle_and_split_training_set(self, sentences_original, next_original, percentage_test=2):
+    def shuffle_and_split_training_set(self, sentences_original, next_original, test_size=0.02):
         # shuffle at unison
         # print('Shuffling sentences')
 
@@ -37,13 +29,14 @@ class Model:
             tmp_sentences.append(sentences_original[i])
             tmp_next_word.append(next_original[i])
 
-        cut_index = int(len(sentences_original) * (1. - (percentage_test / 100.)))
+        cut_index = int(len(sentences_original) * (1. - test_size))
         x_train, x_test = tmp_sentences[:cut_index], tmp_sentences[cut_index:]
         y_train, y_test = tmp_next_word[:cut_index], tmp_next_word[cut_index:]
+        self.x_test, self.y_test = x_test, y_test
 
         # print("Size of training set = %d" % len(x_train))
         # print("Size of test set = %d" % len(y_test))
-        return (x_train, y_train), (x_test, y_test)
+        return x_train, y_train, x_test, y_test
 
     # TODO: rewrite this
     @staticmethod
@@ -64,8 +57,8 @@ class Model:
     def generator(self, sentence_list, next_word_list, batch_size):
         index = 0
         while True:
-            x = np.zeros((batch_size, self.seq_size))
-            y = np.zeros((batch_size))
+            x = np.zeros((batch_size, self.sequence_size))
+            y = np.zeros(batch_size)
             for i in range(batch_size):
                 x[i] = sentence_list[index % len(sentence_list)]
                 # for t, word_id in enumerate(sentence_list[index % len(sentence_list)]):
@@ -76,7 +69,7 @@ class Model:
 
     def build_model(self):
         model = Sequential()
-        model.add(Embedding(self.tokenizer.vocab_size, 50, input_length=self.seq_size))
+        model.add(Embedding(self.tokenizer.vocab_size, 50, input_length=self.sequence_size))
         model.add(LSTM(100, return_sequences=True))
         model.add(LSTM(100))
         model.add(Dense(100, activation='relu'))
@@ -86,25 +79,26 @@ class Model:
 
     def on_epoch_end(self, epoch, logs):
         # select a seed text
-        seed_text = lines[randint(0, len(lines) - 1)]
+        seed_text = self.x_test[np.random.randint(len(self.x_test))]
+        seed_text = self.tokenizer.ids_to_text(seed_text)
         print(seed_text + '\n')
 
         # generate new text
-        generated = self.generate_seq(self.model, seq_length, seed_text, 10)
+        generated = self.generate_seq(seed_text, 10)
         print(f"On seed: {seed_text}\n Generated: {generated}\n")
 
-    def generate_seq(self, model, seq_length, seed_text, n_words):
+    def generate_seq(self, seed_text, n_words):
         result = list()
         in_text = seed_text
         # generate a fixed number of words
 
         for _ in range(n_words):
             # encode the text as integer
-            encoded = tokenizer.text_to_seq([in_text])[0]
+            encoded = self.tokenizer.text_to_seq([in_text])[0]
             # truncate sequences to a fixed length
-            encoded = pad_sequences([encoded], maxlen=seq_length, truncating='pre')
+            encoded = pad_sequences([encoded], maxlen=self.sequence_size, truncating='pre')
             # predict probabilities for each word
-            prediction = model.predict(encoded)[0]
+            prediction = self.model.predict(encoded)[0]
             # get word by prediction (just argmax)
             # TODO: use beam search here?
             predicted_word = self.get_word(prediction)
@@ -116,11 +110,11 @@ class Model:
         # compile model
         self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-    def fit_model(self, data_x, data_y, test_x, test_y):
+    def fit_model(self, data_x, data_y, test_x, test_y, epochs=150):
         print_callback = LambdaCallback(on_epoch_end=self.on_epoch_end)
         self.model.fit_generator(self.generator(data_x, data_y, self.batch_size),
                                  steps_per_epoch=int(len(data_x) / self.batch_size) + 1,
-                                 epochs=150,
+                                 epochs=epochs,
                                  callbacks=[print_callback],
                                  validation_data=self.generator(test_x, test_y, self.batch_size),
                                  validation_steps=int(len(test_x) / self.batch_size) + 1)
@@ -131,6 +125,15 @@ class Model:
     def load_model(self, model):
         self.model = model
 
+    def split_to_sequences(self, text_as_list):
+        sequences, next_words = [], []
+        for i in range(self.sequence_size, len(text_as_list)):
+            sequence = text_as_list[i-self.sequence_size:i]
+            next_words.append(text_as_list[i])
+            sequences.append(sequence)
+        logging.info('Total Sequences: %d' % len(sequences))
+        return sequences, next_words
+
 
 # TODO: Move function to lingtools
 def clean_text(text):
@@ -138,58 +141,49 @@ def clean_text(text):
     return re.sub(r'[^А-Яа-я\s\n]', '', text)
 
 
-def build_sequences(text, words, seq_size):
-    length = seq_size + 1
-    next_words = []
-    sequences = []
-    for i in range(length, len(text)):
-        seq = text[i - length:i]
-        next_words.append(seq[-1])
-        sequences.append(' '.join(seq))
-    # print('Total Sequences: %d' % len(sequences))
-    return sequences, next_words
 
 
-if __name__ == '__main__':
-    # Local env:
-    path_to_text = "../pushkin.txt"
 
-    # model configs:
-    seq_size = 32
-    batch_size = 50
-
-
-    # Load text_data:
-    with open(path_to_text, encoding='utf-8') as f:
-        text = f.read()
-    text = clean_text(text)
-    tokens = word_tokenize(text)
-    words = set(tokens)
-
-    # Split text to seq:
-    (lines, next_words) = build_sequences(tokens, words, seq_size)
-
-    # Map text to tokens
-    tokenizer = tokenizer.MyTokenizer(clean_text, word_tokenize)
-    tokenizer.fit(text)
-    sequences = tokenizer.text_to_seq(lines)  # That's important, that it's lines, not text
-    next_words = list(map(lambda x: tokenizer.word_to_id[x], next_words))
-
-    # Create model
-    my_model = Model(seq_size, batch_size, tokenizer)
-
-    # separate into input and output
-    sequences = np.array(sequences)
-    next_words = np.array(next_words)
-    seq_length = seq_size
-    (X, y), (X_test, y_test) = my_model.shuffle_and_split_training_set(
-        sequences[:, :-1], next_words
-    )
-
-    my_model.build_model()
-    my_model.compile_model()
-    my_model.fit_model(X, y, X_test, y_test)
-    my_model.save_model()
-
-    # save the tokenizer
-    dump(tokenizer, open('tokenizer.pkl', 'wb'))
+# if __name__ == '__main__':
+#     # Local env:
+#     path_to_text = "../pushkin.txt"
+#
+#     # model configs:
+#     seq_size = 32
+#     batch_size = 50
+#
+#
+#     # Load text_data:
+#     with open(path_to_text, encoding='utf-8') as f:
+#         text = f.read()
+#     text = clean_text(text)
+#     tokens = word_tokenize(text)
+#     words = set(tokens)
+#
+#     # Split text to seq:
+#     (lines, next_words) = build_sequences(tokens, words, seq_size)
+#
+#     # Map text to tokens
+#     tokenizer = tokenizer.MyTokenizer(clean_text, word_tokenize)
+#     tokenizer.fit(text)
+#     sequences = tokenizer.text_to_seq(lines)  # That's important, that it's lines, not text
+#     next_words = list(map(lambda x: tokenizer.word_to_id[x], next_words))
+#
+#     # Create model
+#     my_model = Model(seq_size, batch_size, tokenizer)
+#
+#     # separate into input and output
+#     sequences = np.array(sequences)
+#     next_words = np.array(next_words)
+#     seq_length = seq_size
+#     (X, y), (X_test, y_test) = my_model.shuffle_and_split_training_set(
+#         sequences[:, :-1], next_words
+#     )
+#
+#     my_model.build_model()
+#     my_model.compile_model()
+#     my_model.fit_model(X, y, X_test, y_test)
+#     my_model.save_model()
+#
+#     # save the tokenizer
+#     dump(tokenizer, open('tokenizer.pkl', 'wb'))

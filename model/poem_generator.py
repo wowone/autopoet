@@ -2,13 +2,11 @@
 
 from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
-import pickle
 from nltk.tokenize import word_tokenize
-import re
 from rupo.api import Engine
 import numpy as np
-import model.language_model as lang
-from tokenizer import MyTokenizer
+import model.model as lang
+from model.tokenizer import MyTokenizer
 import rhythm.rhythm_handler as rh
 from model.beam_search import SeqGenerator
 
