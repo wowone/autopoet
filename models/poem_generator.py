@@ -1,14 +1,14 @@
-# This is example of generation poems using our model
+# This is example of generation poems using our models
 
 from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
 from nltk.tokenize import word_tokenize
 from rupo.api import Engine
 import numpy as np
-import model.model as lang
-from model.tokenizer import MyTokenizer
+import models.model as lang
+from models.tokenizer import MyTokenizer
 import rhythm.rhythm_handler as rh
-from model.beam_search import SeqGenerator
+from models.beam_search import SeqGenerator
 
 
 def generate_probas(preds, temperature):
@@ -55,7 +55,7 @@ def generating_beam_search(model, seq_len, seed, lines_len, stress_masks, rhythm
             # TODO: Padded with zeros! Horrible solution! REDO!!!
             encoded = pad_sequences([encoded], maxlen=seq_len, truncating='pre')
 
-            prediction = model.predict(encoded)[0]
+            prediction = models.predict(encoded)[0]
             probas = generate_probas(prediction, temperature=0.7)
 
             weight_matrix = list(zip(list(map(lambda x: encoded + [tokenizer.word_to_id[x]], words)),
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     path_to_stress_model = '~/AutoPoetry/stress_ru.h5'
     path_to_stress_dict = '~/AutoPoetry/zaliznyak.txt'
 
-    # Load model
+    # Load models
     model = load_model(path_to_model)
 
     # TODO: Add tokenizer loading, it's replaced with dataset loading now
@@ -164,7 +164,7 @@ if __name__ == '__main__':
         text = f.read()
     text = lang.clean_text(text)
     tokens = word_tokenize(text)
-    tokenizer = MyTokenizer(lang.clean_text, word_tokenize)
+    tokenizer = MyTokenizer(lang.clean_text)
     tokenizer.fit(text)
 
     # Load engine
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     print('Engine loaded')
 
 
-    # This function would be replaced with out own stress model calling
+    # This function would be replaced with out own stress models calling
     def get_stress(word):
         stress = engine.get_stresses(word)
         if not stress:
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     # Words dictionary of dataset
     words = generate_word_list(tokenizer)
 
-    rhythm_handler = rh.RhythmHandler(get_stress, rhythm=(0, 2))
+    rhythm_handler = rh.RhythmHandler(get_stress, rhythm=(1, 2))
     rhythm_handler.generate_masks()
     masks = rhythm_handler.get_masks_for_words(words)
 
@@ -211,6 +211,6 @@ if __name__ == '__main__':
     seed = seed.lower()
     seed = lang.clean_text(seed)
 
-    generator = SeqGenerator(model, tokenizer, 32, masks, rhythm_handler, words, {0: -1, 1: -1, 2: 0, 3: 1}, 3)
+    generator = SeqGenerator(model, tokenizer, 32, masks, rhythm_handler, words, {0: -1, 1: -1, 2: 0, 3: 1}, 2)
     generator.fit_seed(seed)
     generator.generate_poem(4, footness=4)

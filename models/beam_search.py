@@ -57,7 +57,7 @@ def beam_search(iterations, candidates, get_prob_by_seq, seq, beam_size=3):
 # Kinda Beam Father
 class SeqGenerator:
     def __init__(self, model, tokenizer, seq_len, stress_masks, rhythm_handler, words, rhyme_dict, beam_size):
-        """model, seq_len, seed, lines_len, stress_masks, rhythm_handler, words, footness,
+        """models, seq_len, seed, lines_len, stress_masks, rhythm_handler, words, footness,
                       rhyme_module, rhyme_dict,  beam_size=100"""
         self.model = model
         self.tokenizer = tokenizer
@@ -91,7 +91,7 @@ class SeqGenerator:
             mask = mask_by_shift
             mask = mask_by_rhyme
             seq = get_seq_for_beam
-            probas = model.get_probas(seq)
+            probas = models.get_probas(seq)
             weigths.update()
             beam_update()
         """
@@ -118,13 +118,14 @@ class SeqGenerator:
                 weigths = sorted(weigths, key=lambda x: x[1][1])[-self.beam_size:]
                 new_beams = []
                 for (i, beam_inf) in weigths:
+                    print(f"Beam number: {i}")
                     old_beam = self.beams[i]
                     new_beam = Beam(self)
                     new_beam.beam_weight = beam_inf[1]
                     new_beam.poem = beam_inf[0]
                     new_beam.shift = old_beam.shift
                     new_beam.str_poem = old_beam.str_poem
-                    new_beam.last_words = old_beam.last_words
+                    new_beam.last_words = old_beam.last_words.copy()
                     new_beam.update(line, is_final)
                     new_beams.append(new_beam)
 
@@ -183,6 +184,7 @@ class Beam:
 
     def update(self, line, is_final):
         predicted_word = self.poem.split(' ')[-1]
+        print(f"Predicted word: {predicted_word}")
         self.str_poem += predicted_word + ' '
         self.shift = self.handler.rhythm_handler.get_next_shift(predicted_word, self.shift)
         if is_final:

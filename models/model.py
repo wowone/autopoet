@@ -107,7 +107,7 @@ class Model:
         return ' '.join(result)
 
     def compile_model(self):
-        # compile model
+        # compile models
         self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     def fit_model(self, data_x, data_y, test_x, test_y, epochs=150):
@@ -119,7 +119,7 @@ class Model:
                                  validation_data=self.generator(test_x, test_y, self.batch_size),
                                  validation_steps=int(len(test_x) / self.batch_size) + 1)
 
-    def save_model(self, filename='model.h5'):
+    def save_model(self, filename='models.h5'):
         self.model.save(filename)
 
     def load_model(self, model):
@@ -148,7 +148,7 @@ def clean_text(text):
 #     # Local env:
 #     path_to_text = "../pushkin.txt"
 #
-#     # model configs:
+#     # models configs:
 #     seq_size = 32
 #     batch_size = 50
 #
@@ -169,7 +169,7 @@ def clean_text(text):
 #     sequences = tokenizer.text_to_seq(lines)  # That's important, that it's lines, not text
 #     next_words = list(map(lambda x: tokenizer.word_to_id[x], next_words))
 #
-#     # Create model
+#     # Create models
 #     my_model = Model(seq_size, batch_size, tokenizer)
 #
 #     # separate into input and output
