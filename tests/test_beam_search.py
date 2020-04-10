@@ -2,7 +2,7 @@ import unittest
 from rhythm.rhythm_handler import RhythmHandler
 import numpy as np
 import logging
-import model.beam_search as bm
+import models.beam_search as bm
 
 
 class MyTestCase(unittest.TestCase):
