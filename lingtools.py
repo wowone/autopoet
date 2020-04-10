@@ -56,6 +56,7 @@ class Word:
 
 
 class LingTools:
+
     def __init__(self):
         self.vowels = 'аеёиоуыэюя'
         self.consonants = 'бвгджзйклмнпрстфхцчшщъь'
@@ -65,35 +66,78 @@ class LingTools:
         self.stop_words = pd.read_csv('phonetic_data/stop_words.txt', header=None)[0].to_list()
         self.phoneme_distance = pd.read_csv('phonetic_data/distance_matrix_jaccard.csv', index_col='name')
 
+        self.sonoric_consonants = ['л', 'м', 'н', 'р', 'й']
+        self.noisy_consonants = ['б', 'в', 'г', 'д', 'з', 'ж']
+        self.deaf_consonants = ['п', 'ф', 'к', 'т', 'с', 'ш',
+                                'х', 'ц', 'ч', 'щ']
+        self.special = ['ь', 'ъ']
+
         # TODO: Remove the heavy file from the repository
         self.stresses = pd.read_csv('../yadisk/stress_data.csv', header=None, index_col=0)[1].to_dict()
 
-    def split_syllables(self, word):
-        syllables = []
-        current_syllable_template = {
-            'syl': [],
-            'has_vowel': False
-        }
-        current_syllable = copy.deepcopy(current_syllable_template)
-        for i, letter in enumerate(word):
-            if current_syllable['has_vowel'] is False:
-                current_syllable['syl'].append(letter)
-            elif letter in self.consonants \
-                    and (((i < len(word) - 1) and word[i + 1] in self.consonants) or (i == len(word) - 1)):
-                current_syllable['syl'].append(letter)
-            elif letter in ['ь', 'ъ']:
-                current_syllable['syl'].append(letter)
-            elif letter == "'":
-                current_syllable['syl'].append(letter)
-            else:
-                syllables.append(''.join(current_syllable['syl']))
-                current_syllable = copy.deepcopy(current_syllable_template)
-                current_syllable['syl'].append(letter)
+    def _get_vowel_index(self, word, index):
+        for i in range(index, len(word)):
+            if word[i] in self.vowels:
+                return i
+        return len(word)
 
-            if letter in self.vowels:
-                current_syllable['has_vowel'] = True
-        syllables.append(''.join(current_syllable['syl']))
-        return syllables
+    def split_syllables(self, word):
+        syllabes = []
+        last_index = 0
+        while self._get_vowel_index(word, last_index) < len(word):
+            position = self._get_vowel_index(word, last_index)
+            next_vowel_position = self._get_vowel_index(word, position + 1)
+
+            if next_vowel_position == len(word):
+                syll = word[last_index:]
+                syllabes.append(syll)
+                last_index = len(word)
+                continue
+
+            syll = word[last_index: position + 1]
+            if next_vowel_position - position > 2:
+                if word[position + 2] in self.special:
+                    syll += word[position + 1: position + 3]
+                    position += 2
+
+            if next_vowel_position - position >= 2 \
+                    and word[position + 1] in self.sonoric_consonants \
+                    and word[position + 2] in self.deaf_consonants:
+                syll += word[position + 1: position + 2]
+                position += 1
+            elif next_vowel_position - position >= 2 \
+                    and word[position + 1].lower() == 'й' \
+                    and word[position + 2] in self.consonants:
+                syll += word[position + 1: position + 2]
+                position += 1
+
+            syllabes.append(syll)
+            last_index = position + 1
+        return syllabes
+
+    @staticmethod
+    def levenshtein_distance(a, b):
+        first = ['#'] + list(a)
+        second = ['#'] + list(b)
+        dp = [[]] * len(first)
+
+        for i in range(len(first)):
+            dp[i] = [0] * len(second)
+
+        for i in range(len(first)):
+            for j in range(len(second)):
+                if i == 0 and j == 0:
+                    dp[i][j] = 0
+                elif i == 0:
+                    dp[i][j] = j
+                elif j == 0:
+                    dp[i][j] = i
+                else:
+                    dp[i][j] = min(dp[i - 1][j] + 1,
+                                   dp[i][j - 1] + 1,
+                                   dp[i - 1][j - 1] + int(first[i] != second[j]))
+
+        return dp[len(first) - 1][len(second) - 1]
 
     @staticmethod
     def _squeeze_sibilants(word):
@@ -232,16 +276,16 @@ class LingTools:
 
         if item.next is not None:
             # оглушение следующих
-            if item.phoneme in self.phoneme_properties.index\
-                    and self.phoneme_properties.loc[item.phoneme]['vcd'] == '-'\
+            if item.phoneme in self.phoneme_properties.index \
+                    and self.phoneme_properties.loc[item.phoneme]['vcd'] == '-' \
                     and item.next is not None:
-                if item.next.phoneme in self.phoneme_properties.index\
+                if item.next.phoneme in self.phoneme_properties.index \
                         and self.phoneme_properties.loc[item.next.phoneme]['son'] == '-':
                     item.next.voice = False
             # озвончение следующих
-            elif item.phoneme in self.phoneme_properties.index\
-                    and self.phoneme_properties.loc[item.phoneme]['son'] == '-'\
-                    and item.phoneme not in ['в', "в’"]\
+            elif item.phoneme in self.phoneme_properties.index \
+                    and self.phoneme_properties.loc[item.phoneme]['son'] == '-' \
+                    and item.phoneme not in ['в', "в’"] \
                     and self.phoneme_properties.loc[item.phoneme]['vcd'] == '+':
                 item.next.voice = True
 
@@ -325,8 +369,8 @@ class LingTools:
             if word in self.stop_words:
                 if len(words) > 1:
                     stop = True
-                if i != len(words) - 1\
-                        and word[0] in self.phoneme_properties.index\
+                if i != len(words) - 1 \
+                        and word[0] in self.phoneme_properties.index \
                         and self.phoneme_properties.loc[word[0]]['vcd'] == '+':
                     vcd = True
             res.append(self.get_transcription(word, stop=stop, vcd=vcd, as_string=as_string))
@@ -368,7 +412,6 @@ class LingTools:
             with pd.option_context('display.max_rows', 100):
                 print(res.sort_values('score').head(100))
         return result
-
 
 # if __name__ == '__main__':
 #     lt = LingTools()
