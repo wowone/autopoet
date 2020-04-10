@@ -1,19 +1,6 @@
 from keras.preprocessing.sequence import pad_sequences
 import numpy as np
 
-
-def generate_probas(preds, temperature):
-    # TODO: rewrite this
-    # helper function to sample an index from a probability array
-    preds = np.asarray(preds).astype('float64')
-    preds = np.log(preds) / temperature
-    exp_preds = np.exp(preds)
-    preds = exp_preds / np.sum(exp_preds)
-    #probas = np.random.multinomial(1, preds, 1)  # Why multinomial?
-    return preds
-
-
-
 # Return the longest common suffix in a list of strings
 def longest_common_suffix(a, b):
     b = list(reversed(b))
@@ -37,28 +24,24 @@ def rhyme_mask(word, words):
             mask[i] = 1
     return mask
 
-def beam_search(iterations, candidates, get_prob_by_seq, seq, beam_size=3):
-    cur_beam = []
-    for _ in range(iterations):
-        if not cur_beam:
-            probs = get_prob_by_seq(seq)
-            weight_matrix = list(zip(list(map(lambda x: seq + [x], candidates)), np.log(probs)))
-            cur_beam = sorted(weight_matrix, key=lambda x: x[1])[-beam_size:]
-            continue
-        weight_matrix = []
-        for (seqbeam, weightbeam) in cur_beam:
-            probs = get_prob_by_seq(seqbeam)
-            weight_matrix += list(zip(list(map(lambda x: seqbeam + [x], candidates)),
-                                      np.add(np.log(probs), np.array([weightbeam] * len(probs)))))
-        cur_beam = sorted(weight_matrix, key=lambda x: x[1])[-beam_size:]
-    return list(map(lambda x: x[0], cur_beam))
-
 
 # Kinda Beam Father
 class SeqGenerator:
-    def __init__(self, model, tokenizer, seq_len, stress_masks, rhythm_handler, words, rhyme_dict, beam_size):
-        """models, seq_len, seed, lines_len, stress_masks, rhythm_handler, words, footness,
-                      rhyme_module, rhyme_dict,  beam_size=100"""
+    def __init__(self, model, tokenizer, seq_len, stress_masks, rhythm_handler, words, rhyme_dict, beam_size,
+                 temperature=1.0):
+        """
+        :param model: model with predict function
+        :param tokenizer: tokenizer with text_to_seq function
+        :param seq_len: length of model input layer
+        :param stress_masks: binary masks for words with different rhythm shifts
+        :param rhythm_handler: rhythm_handler with get_next_shift function
+        :param words: dictionary of all words sorted in the same way as in model and tokenizer!
+        :param rhyme_dict: dictionary for rhyme in form [line_number] : [rhymed_line_number]
+                           example for ABAB : {0: -1, 1: -1, 2: 0, 3: 1}
+                           example for AABB : {0: -1, 1: 0, 2: -1, 3: 2}
+        :param beam_size: size of beam bucket (bigger ---> better, but slower)
+        :param temperature: some constant for prediction calculation. ML technique to regulate model confidence
+        """
         self.model = model
         self.tokenizer = tokenizer
         self.seq_len = seq_len
@@ -71,67 +54,73 @@ class SeqGenerator:
         self.rhyme_module = len(rhyme_dict)
         self.beams = []
         self.beam_size = beam_size
+        self.temperature = temperature
+        self.neutral_mask = np.array([1] * self.dict_len)
+
+    def generate_probas(self, preds):
+        # exp^(log(prob) / T) / (sum (exp))
+        preds = np.asarray(preds).astype('float64')
+        preds = np.log(preds) / self.temperature
+        exp_preds = np.exp(preds)
+        preds = exp_preds / np.sum(exp_preds)
+        return preds
 
     def fit_seed(self, seed):
         self.seed = seed
 
     def generate_poem(self, lines_len, footness):
-        """
-        for lines:
-            while !end_of_line:
-                for every_beam:
-                    beam_step
-                weights = get_all_beam_weights()
-                beams = get_top_beams(weights)
-                beams.update_if_survive(how many beams my suns alive)
-            beam_end_of_line
-        """
-        """
-        beam_step:
-            mask = mask_by_shift
-            mask = mask_by_rhyme
-            seq = get_seq_for_beam
-            probas = models.get_probas(seq)
-            weigths.update()
-            beam_update()
-        """
         for line_index in range(lines_len):
             stress_count = 0
             for beam in self.beams:
+                # Set shift to zero in all beams
+                # New line, new rhythm shifting
                 beam.update_shift()
-            # TODO: What if beam choose word withoud stress? Lol. I've no solution right now, so.
+            # TODO: What if beam choose word withoud stress?
             while stress_count != footness:
-                weigths = []
+                weights = []
+                # Really important for all beams, is it final word of line and rhyme needed
                 is_final = footness - 1 == stress_count
+                # line is index of current line in rhyme_dict
                 line = line_index % self.rhyme_module
                 if not self.beams:
+                    # First iteration of beam settings, just initialisation
+                    # Runs once in generate_poem function
                     start_beam = Beam(self)
                     start_beam.fit(self.seed)
                     start_beam.step(line, is_final)
-                    weigths += list(map(lambda x: (0, x), start_beam.weights))
+                    weights += list(map(lambda x: (0, x), start_beam.weights))
                     self.beams = [start_beam]
                 else:
+                    # weights - list of all beams predictions
+                    # len(weights) == beam_size * len(words)
+
                     for i, beam in enumerate(self.beams):
                         beam.step(line, is_final)
                         beam_weights = beam.weights
-                        weigths += list(map(lambda x: (i, x), beam_weights))
-                weigths = sorted(weigths, key=lambda x: x[1][1])[-self.beam_size:]
+                        weights += list(map(lambda x: (i, x), beam_weights))
+                # Gen only first beam_size poems, sorted by probability
+                weights = sorted(weights, key=lambda x: x[1][1])[-self.beam_size:]
+                # Now we should create list of new, most probable beams
                 new_beams = []
-                for (i, beam_inf) in weigths:
-                    print(f"Beam number: {i}")
+                for (i, beam_inf) in weights:
                     old_beam = self.beams[i]
                     new_beam = Beam(self)
+                    # Save old_beam state
                     new_beam.beam_weight = beam_inf[1]
                     new_beam.poem = beam_inf[0]
                     new_beam.shift = old_beam.shift
                     new_beam.str_poem = old_beam.str_poem
+                    # Very important! Copy value, not reference
                     new_beam.last_words = old_beam.last_words.copy()
+
                     new_beam.update(line, is_final)
                     new_beams.append(new_beam)
 
-                for beam in self.beams:
-                    del beam
+                # Should garbage collector do that?
+                #for beam in self.beams:
+                #    del beam
 
+                # Lose references on old_beams, they must be deleted by GC
                 self.beams = new_beams
                 # TODO: is_stressed?
                 stress_count += 1
@@ -141,6 +130,7 @@ class SeqGenerator:
             print(beam.str_poem)
 
 
+# Should be nested class
 class Beam:
     def __init__(self, handler):
         self.handler = handler
@@ -150,10 +140,8 @@ class Beam:
             self.last_words[i] = ""
         self.poem = ""
         self.str_poem = ""
-        self.neutral_mask = np.array([1] * handler.dict_len)
         self.weights = []
         self.beam_weight = 0
-        self.prob_max = 0
 
     def fit(self, seed):
         self.poem = seed
@@ -163,14 +151,14 @@ class Beam:
         if is_final:
             mask_rhyme = rhyme_mask(self.last_words[self.handler.rhyme_dict[line]], self.handler.words)
         else:
-            mask_rhyme = self.neutral_mask
+            mask_rhyme = self.handler.neutral_mask
         mask = np.multiply(mask_rhyme, mask_stress)
         encoded = self.handler.tokenizer.text_to_seq([self.poem])[0]
         # TODO: Padded with zeros! Horrible solution! REDO!!!
         encoded = pad_sequences([encoded], maxlen=self.handler.seq_len, truncating='pre')
 
         prediction = self.handler.model.predict(encoded)[0]
-        probas = generate_probas(prediction, temperature=0.7)
+        probas = self.handler.generate_probas(prediction, temperature=0.4)
         self.update_weights(np.multiply(probas, mask))
 
     def update_shift(self):
@@ -184,7 +172,6 @@ class Beam:
 
     def update(self, line, is_final):
         predicted_word = self.poem.split(' ')[-1]
-        print(f"Predicted word: {predicted_word}")
         self.str_poem += predicted_word + ' '
         self.shift = self.handler.rhythm_handler.get_next_shift(predicted_word, self.shift)
         if is_final:
