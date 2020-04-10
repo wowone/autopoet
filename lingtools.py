@@ -119,10 +119,8 @@ class LingTools:
     def levenshtein_distance(a, b):
         first = ['#'] + list(a)
         second = ['#'] + list(b)
-        dp = [[]] * len(first)
 
-        for i in range(len(first)):
-            dp[i] = [0] * len(second)
+        dp = np.zeros((len(first), len(second)))
 
         for i in range(len(first)):
             for j in range(len(second)):
