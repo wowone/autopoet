@@ -68,6 +68,40 @@ class SeqGenerator:
     def fit_seed(self, seed):
         self.seed = seed
 
+    def __create_start_beam(self):
+        # First iteration of beam settings, just initialisation
+        # Runs once in generate_poem function
+        start_beam = Beam(self)
+        start_beam.fit(self.seed)
+        start_beam.step(line=0, is_final=False)
+        self.beams = [start_beam]
+        return list(map(lambda x: (0, x), start_beam.weights))
+
+    def __all_beams_step(self, line, is_final):
+        weights = []
+        for i, beam in enumerate(self.beams):
+            beam.step(line, is_final)
+            beam_weights = beam.weights
+            weights += list(map(lambda x: (i, x), beam_weights))
+        return weights
+
+    def __beams_reborn(self, weights, line, is_final):
+        new_beams = []
+        for (i, beam_inf) in weights:
+            old_beam = self.beams[i]
+            new_beam = Beam(self)
+            # Save old_beam state
+            new_beam.beam_weight = beam_inf[1]
+            new_beam.poem = beam_inf[0]
+            new_beam.shift = old_beam.shift
+            new_beam.str_poem = old_beam.str_poem
+            # Very important! Copy value, not reference
+            new_beam.last_words = old_beam.last_words.copy()
+
+            new_beam.update(line, is_final)
+            new_beams.append(new_beam)
+        return new_beams
+
     def generate_poem(self, lines_len, footness):
         for line_index in range(lines_len):
             stress_count = 0
@@ -77,48 +111,18 @@ class SeqGenerator:
                 beam.update_shift()
             # TODO: What if beam choose word withoud stress?
             while stress_count != footness:
-                weights = []
                 # Really important for all beams, is it final word of line and rhyme needed
                 is_final = footness - 1 == stress_count
                 # line is index of current line in rhyme_dict
                 line = line_index % self.rhyme_module
-                if not self.beams:
-                    # First iteration of beam settings, just initialisation
-                    # Runs once in generate_poem function
-                    start_beam = Beam(self)
-                    start_beam.fit(self.seed)
-                    start_beam.step(line, is_final)
-                    weights += list(map(lambda x: (0, x), start_beam.weights))
-                    self.beams = [start_beam]
-                else:
-                    # weights - list of all beams predictions
-                    # len(weights) == beam_size * len(words)
+                # weights - list of all beams predictions
+                # len(weights) == beam_size * len(words)
+                weights = self.__all_beams_step(line, is_final) if self.beams else self.__create_start_beam()
 
-                    for i, beam in enumerate(self.beams):
-                        beam.step(line, is_final)
-                        beam_weights = beam.weights
-                        weights += list(map(lambda x: (i, x), beam_weights))
                 # Gen only first beam_size poems, sorted by probability
                 weights = sorted(weights, key=lambda x: x[1][1])[-self.beam_size:]
                 # Now we should create list of new, most probable beams
-                new_beams = []
-                for (i, beam_inf) in weights:
-                    old_beam = self.beams[i]
-                    new_beam = Beam(self)
-                    # Save old_beam state
-                    new_beam.beam_weight = beam_inf[1]
-                    new_beam.poem = beam_inf[0]
-                    new_beam.shift = old_beam.shift
-                    new_beam.str_poem = old_beam.str_poem
-                    # Very important! Copy value, not reference
-                    new_beam.last_words = old_beam.last_words.copy()
-
-                    new_beam.update(line, is_final)
-                    new_beams.append(new_beam)
-
-                # Should garbage collector do that?
-                #for beam in self.beams:
-                #    del beam
+                new_beams = self.__beams_reborn(weights, line, is_final)
 
                 # Lose references on old_beams, they must be deleted by GC
                 self.beams = new_beams
@@ -158,7 +162,7 @@ class Beam:
         encoded = pad_sequences([encoded], maxlen=self.handler.seq_len, truncating='pre')
 
         prediction = self.handler.model.predict(encoded)[0]
-        probas = self.handler.generate_probas(prediction, temperature=0.4)
+        probas = self.handler.generate_probas(prediction)
         self.update_weights(np.multiply(probas, mask))
 
     def update_shift(self):
