@@ -9,6 +9,8 @@ class MyTestCase(unittest.TestCase):
     def test_something(self):
         self.assertEqual(True, True)
 
+    # Unit test for depricated function beam_search
+    """
     def test_lol_kek_cheburek(self):
         seq = ['лол', 'кек', 'чебурек', 'кот']
 
@@ -23,7 +25,7 @@ class MyTestCase(unittest.TestCase):
 
         assert(bm.beam_search(iterations=3, candidates=seq, get_prob_by_seq=probs, seq=[])[-1]
             == ['лол', 'кек', 'чебурек'])
-
+    """
 
 if __name__ == '__main__':
     unittest.main()
