@@ -80,12 +80,13 @@ class Model:
     def on_epoch_end(self, epoch, logs):
         # select a seed text
         seed_text = self.x_test[np.random.randint(len(self.x_test))]
+        seed_text_reversed = self.tokenizer.ids_to_text(reversed(seed_text))
         seed_text = self.tokenizer.ids_to_text(seed_text)
-        print(seed_text + '\n')
 
         # generate new text
         generated = self.generate_seq(seed_text, 10)
-        print(f"On seed: {seed_text}\n Generated: {generated}\n")
+        generated_reversed = ' '.join(reversed(generated))
+        print(f"Generated: {generated_reversed}\nOn seed: {seed_text_reversed}\n")
 
     def generate_seq(self, seed_text, n_words):
         result = list()
@@ -104,7 +105,7 @@ class Model:
             predicted_word = self.get_word(prediction)
             result.append(predicted_word)
             in_text += ' ' + predicted_word
-        return ' '.join(result)
+        return result
 
     def compile_model(self):
         # compile model
@@ -127,8 +128,8 @@ class Model:
 
     def split_to_sequences(self, text_as_list):
         sequences, next_words = [], []
-        for i in range(self.sequence_size, len(text_as_list)):
-            sequence = text_as_list[i-self.sequence_size:i]
+        for i in range(len(text_as_list) - self.sequence_size):
+            sequence = text_as_list[i + 1:i + 1 + self.sequence_size][::-1]
             next_words.append(text_as_list[i])
             sequences.append(sequence)
         logging.info('Total Sequences: %d' % len(sequences))
