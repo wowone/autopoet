@@ -1,14 +1,14 @@
-# This is example of generation poems using our model
+# This is example of generation poems using our models
 
 from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
 from nltk.tokenize import word_tokenize
 from rupo.api import Engine
 import numpy as np
-import model.model as lang
-from model.tokenizer import MyTokenizer
+import models.model as lang
+from models.tokenizer import MyTokenizer
 import rhythm.rhythm_handler as rh
-from model.beam_search import SeqGenerator
+from models.beam_search import SeqGenerator
 
 
 def generate_probas(preds, temperature):
@@ -25,49 +25,8 @@ def generate_probas(preds, temperature):
 def get_word(prediction, mask, temperature=1.):
     p = generate_probas(prediction, temperature)
     mmask = np.multiply(p, mask)
-    # print(np.max(mmask))
     return tokenizer.id_to_word[np.argmax(mmask)]
-    # return tokenizer.id_to_word[np.argmax(p)]
 
-def generating_beam_search(model, seq_len, seed, lines_len, stress_masks, rhythm_handler, words, footness,
-                      rhyme_module, rhyme_dict,  beam_size=100):
-    """
-    current_text = [seed] * beam_size
-    shift = [0] * beam_size
-    last_words = [{-1: ""}] * beam_size
-    for beam in range(beam_size):
-        for index in range(rhyme_module):
-            last_words[beam][index] = ""
-    neutral_mask = np.array([1] * len(words))
-    cur_beam = []
-
-    for line_index in range(lines_len):
-        # TODO: here you suppose that every word has stress, fix
-        stress_count = 0
-        shift = [0] * beam_size
-        while
-        if not cur_beam:
-            mask_stress = stress_masks[0]
-            mask_rhyme = neutral_mask
-            mask = np.multiply(mask_stress, mask_rhyme)
-
-            encoded = tokenizer.text_to_seq([seed])[0]
-            # TODO: Padded with zeros! Horrible solution! REDO!!!
-            encoded = pad_sequences([encoded], maxlen=seq_len, truncating='pre')
-
-            prediction = model.predict(encoded)[0]
-            probas = generate_probas(prediction, temperature=0.7)
-
-            weight_matrix = list(zip(list(map(lambda x: encoded + [tokenizer.word_to_id[x]], words)),
-                                     np.log(probas)))
-            cur_beam = sorted(weight_matrix, key=lambda x: x[1])[-beam_size:]
-            for i, (seqbeam, weight) in enumerate(cur_beam):
-                word = tokenizer.id_to_word(seqbeam[-1])
-                shift[i] = rhythm_handler.get_next_shift(shift[i], word)
-                current_text[i] = current_text[i] + word
-            stress_count += 1
-            continue
-    """
 # Greedy
 def generate_sequence(model, seq_len, seed, lines_len, stress_masks, rhythm_handler, words, footness,
                       rhyme_module, rhyme_dict):
@@ -153,7 +112,7 @@ if __name__ == '__main__':
     path_to_stress_model = '~/AutoPoetry/stress_ru.h5'
     path_to_stress_dict = '~/AutoPoetry/zaliznyak.txt'
 
-    # Load model
+    # Load models
     model = load_model(path_to_model)
 
     # TODO: Add tokenizer loading, it's replaced with dataset loading now
@@ -164,7 +123,7 @@ if __name__ == '__main__':
         text = f.read()
     text = lang.clean_text(text)
     tokens = word_tokenize(text)
-    tokenizer = MyTokenizer(lang.clean_text, word_tokenize)
+    tokenizer = MyTokenizer(lang.clean_text)
     tokenizer.fit(text)
 
     # Load engine
@@ -176,7 +135,7 @@ if __name__ == '__main__':
     print('Engine loaded')
 
 
-    # This function would be replaced with out own stress model calling
+    # This function would be replaced with out own stress models calling
     def get_stress(word):
         stress = engine.get_stresses(word)
         if not stress:
@@ -211,6 +170,8 @@ if __name__ == '__main__':
     seed = seed.lower()
     seed = lang.clean_text(seed)
 
-    generator = SeqGenerator(model, tokenizer, 32, masks, rhythm_handler, words, {0: -1, 1: -1, 2: 0, 3: 1}, 3)
+    generator = SeqGenerator(model, tokenizer, 32, masks, rhythm_handler, words, {0: -1, 1: -1, 2: 0, 3: 1}, 100)
     generator.fit_seed(seed)
     generator.generate_poem(4, footness=4)
+    print(generate_sequence(model, 32, seed, 4, masks, rhythm_handler, words, 4,
+                      4, {0: -1, 1: -1, 2: 0, 3: 1}))
