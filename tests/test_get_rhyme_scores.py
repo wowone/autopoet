@@ -19,6 +19,4 @@ def test_transcription():
     res = pd.DataFrame(res, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
     res = res.sort_values('score')
 
-    #print(res['word1'].to_list())
-    #print(['борода', 'провода', 'вражда', 'борта', 'вождя', 'ладах', 'морс'])
-    assert res['word1'].to_list() == ['борода', 'провода', 'борта', 'ладах', 'вражда', 'вождя', 'морс']
+    assert res['word1'].to_list() == ['борода', 'провода', 'вражда', 'борта', 'вождя', 'ладах', 'морс']

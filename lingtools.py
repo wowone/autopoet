@@ -82,38 +82,31 @@ class LingTools:
         return len(word)
 
     def split_syllables(self, word):
-        syllabes = []
-        last_index = 0
-        while self._get_vowel_index(word, last_index) < len(word):
-            position = self._get_vowel_index(word, last_index)
-            next_vowel_position = self._get_vowel_index(word, position + 1)
+        syllables = []
+        current_syllable_template = {
+            'syl': [],
+            'has_vowel': False
+        }
+        current_syllable = copy.deepcopy(current_syllable_template)
+        for i, letter in enumerate(word):
+            if current_syllable['has_vowel'] is False:
+                current_syllable['syl'].append(letter)
+            elif letter in self.consonants \
+                    and (((i < len(word) - 1) and word[i + 1] in self.consonants) or (i == len(word) - 1)):
+                current_syllable['syl'].append(letter)
+            elif letter in ['ь', 'ъ']:
+                current_syllable['syl'].append(letter)
+            elif letter == "'":
+                current_syllable['syl'].append(letter)
+            else:
+                syllables.append(''.join(current_syllable['syl']))
+                current_syllable = copy.deepcopy(current_syllable_template)
+                current_syllable['syl'].append(letter)
 
-            if next_vowel_position == len(word):
-                syll = word[last_index:]
-                syllabes.append(syll)
-                last_index = len(word)
-                continue
-
-            syll = word[last_index: position + 1]
-            if next_vowel_position - position > 2:
-                if word[position + 2] in self.special:
-                    syll += word[position + 1: position + 3]
-                    position += 2
-
-            if next_vowel_position - position >= 2 \
-                    and word[position + 1] in self.sonoric_consonants \
-                    and word[position + 2] in self.deaf_consonants:
-                syll += word[position + 1: position + 2]
-                position += 1
-            elif next_vowel_position - position >= 2 \
-                    and word[position + 1].lower() == 'й' \
-                    and word[position + 2] in self.consonants:
-                syll += word[position + 1: position + 2]
-                position += 1
-
-            syllabes.append(syll)
-            last_index = position + 1
-        return syllabes
+            if letter in self.vowels:
+                current_syllable['has_vowel'] = True
+        syllables.append(''.join(current_syllable['syl']))
+        return syllables
 
     @staticmethod
     def levenshtein_distance(a, b):
