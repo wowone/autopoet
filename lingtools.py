@@ -393,7 +393,6 @@ class LingTools:
         tail0 = [x for x in tail0 if x != '']
 
         for word1 in words:
-            print(word1)
             transcription1, tail1 = self.get_transcription(word1, get_tail=True)
 
             tail1 = [x for x in tail1 if x != '']
@@ -406,7 +405,6 @@ class LingTools:
             for i in range(min_len, max_len):
                 penalty += 1
             result.append([word0, word1, transcription0, transcription1, penalty])
-            print(word1)
 
         if debug is True:
             res = pd.DataFrame(result, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
