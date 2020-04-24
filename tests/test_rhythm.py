@@ -1,14 +1,13 @@
 import unittest
+
 from rhythm.rhythm_handler import RhythmHandler
-import numpy as np
-import logging
 
 
 class MyTestCase(unittest.TestCase):
     def test_something(self):
         self.assertEqual(True, True)
 
-   # def __init__(self):
+    # def __init__(self):
     #    self.yamb_handler = RhythmHandler(get_stress=lambda x: 1, dict_size=10)
 
     def test_get_masks_yamb(self):
@@ -53,13 +52,12 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(handler.get_syllables_count('сороковые'), 5)
 
     def test_horey_get_masks_for_stresses(self):
-                    # вИхри:0 снЕжные:0 крутЯ:1 собАка:1 велосипЕд: 3 абрикОс:2
+        # вИхри:0 снЕжные:0 крутЯ:1 собАка:1 велосипЕд: 3 абрикОс:2
         stress_list = [0, 0, 1, 1, 3, 2]
         handler = RhythmHandler(get_stress=lambda x: 1, rhythm=(0, 2))
         masks = handler.get_masks_for_stresses(stress_list)
         self.assertEqual(masks[0].tolist(), [1, 1, 0, 0, 0, 1])
         self.assertEqual(masks[1].tolist(), [0, 0, 1, 1, 1, 0])
-
 
     def test_daktil_get_masks_for_stresses(self):
         stress_list = [0, 0, 1, 1, 3, 2, 4, 1, 3]
@@ -87,7 +85,7 @@ class MyTestCase(unittest.TestCase):
         get_stress = lambda x: stresses[x]
         handler = RhythmHandler(get_stress, rhythm=(0, 2))
         masks = handler.get_masks_for_words(words)
-        #print(handler.list_to_stressed(words))
+        # print(handler.list_to_stressed(words))
         self.assertEqual(masks[0].tolist(), [0, 1, 1, 1, 1, 0])
         self.assertEqual(masks[1].tolist(), [1, 0, 0, 0, 0, 0])
 

@@ -127,13 +127,13 @@ class LingTools:
                     dp[i][j] = min(dp[i - 1][j] + 1,
                                    dp[i][j - 1] + 1,
                                    dp[i - 1][j - 1] + int(first[i] != second[j]))
-
-        return dp[len(first) - 1][len(second) - 1]
+        ans = dp[len(first) - 1][len(second) - 1]
+        return ans
 
     @staticmethod
     def _squeeze_sibilants(word):
         word = re.sub('(с|ст|сс|з|зд|ж|ш)ч', 'щ', word)
-        word = re.sub('(с|зд|з)щ', 'щ', word)
+        word = re.sub("(с|зд|з)щ", 'щ', word)
         word = re.sub('(тч|тш|дш)', 'ч', word)
         word = re.sub('(с|з)ш', 'ш', word)
         word = re.sub('сж', 'ж', word)
@@ -343,6 +343,7 @@ class LingTools:
 
         transcription = self._isolate_yot_phoneme(transcription)
         tail = self._isolate_yot_phoneme(tail)
+        tail = list(filter(lambda x: x != '', tail))
 
         if as_string is True:
             transcription = ''.join(transcription)
@@ -388,15 +389,24 @@ class LingTools:
     def get_rhyme_scores(self, word0, words, debug=False):
         transcription0, tail0 = self.get_transcription(word0, get_tail=True)
         result = []
+
+        tail0 = [x for x in tail0 if x != '']
+
         for word1 in words:
+            print(word1)
             transcription1, tail1 = self.get_transcription(word1, get_tail=True)
+
+            tail1 = [x for x in tail1 if x != '']
+
             penalty = 0
             min_len, max_len = min(len(tail0), len(tail1)), max(len(tail0), len(tail1))
+
             for i in range(min_len):
                 penalty += self.phoneme_distance.loc[tail0[i], tail1[i]]
             for i in range(min_len, max_len):
                 penalty += 1
             result.append([word0, word1, transcription0, transcription1, penalty])
+            print(word1)
 
         if debug is True:
             res = pd.DataFrame(result, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
