@@ -108,7 +108,6 @@ class LingTools:
         syllables.append(''.join(current_syllable['syl']))
         return syllables
 
-    # check
     @staticmethod
     def levenshtein_distance(a, b):
         first = ['#'] + list(a)
