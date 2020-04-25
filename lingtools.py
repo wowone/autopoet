@@ -1,8 +1,8 @@
 import copy
-import csv
 import numpy as np
 import pandas as pd
 import re
+from pathlib import Path
 
 
 class Letter:
@@ -58,13 +58,14 @@ class Word:
 class LingTools:
 
     def __init__(self):
+        base_path = Path(__file__).parent
         self.vowels = 'аеёиоуыэюя'
         self.consonants = 'бвгджзйклмнпрстфхцчшщъь'
-        self.vowel_phonemes = pd.read_csv('phonetic_data/vowels.csv', index_col='name', sep=';')
-        self.consonant_phonemes = pd.read_csv('phonetic_data/consonants.csv', index_col='name')
-        self.phoneme_properties = pd.read_csv('phonetic_data/phoneme_properties.csv', index_col='name')
-        self.stop_words = pd.read_csv('phonetic_data/stop_words.txt', header=None)[0].to_list()
-        self.phoneme_distance = pd.read_csv('phonetic_data/distance_matrix_jaccard.csv', index_col='name')
+        self.vowel_phonemes = pd.read_csv(base_path / 'phonetic_data/vowels.csv', index_col='name', sep=';')
+        self.consonant_phonemes = pd.read_csv(base_path / 'phonetic_data/consonants.csv', index_col='name')
+        self.phoneme_properties = pd.read_csv(base_path / 'phonetic_data/phoneme_properties.csv', index_col='name')
+        self.stop_words = pd.read_csv(base_path / 'phonetic_data/stop_words.txt', header=None)[0].to_list()
+        self.phoneme_distance = pd.read_csv(base_path / 'phonetic_data/distance_matrix_jaccard.csv', index_col='name')
 
         self.sonoric_consonants = ['л', 'м', 'н', 'р', 'й']
         self.noisy_consonants = ['б', 'в', 'г', 'д', 'з', 'ж']
@@ -73,7 +74,7 @@ class LingTools:
         self.special = ['ь', 'ъ']
 
         # TODO: Remove the heavy file from the repository
-        self.stresses = pd.read_csv('../yadisk/stress_data.csv', header=None, index_col=0)[1].to_dict()
+        self.stresses = pd.read_csv(base_path / '../yadisk/stress_data.csv', header=None, index_col=0)[1].to_dict()
 
     def _get_vowel_index(self, word, index):
         for i in range(index, len(word)):
