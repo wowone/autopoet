@@ -55,17 +55,17 @@ def get_rhyme_scores(template, words, debug=False):
     return result
 
 
-def get_rhyme_scores_second_levenstein(template, words, debug=False):
+def get_rhyme_scores_second_levenshtein(template, word_list, debug=False):
     lt = lingtools.LingTools()
 
-    part = get_end_part(lt, template)
+    word_trans, part = lt.get_transcription(template, get_tail=True)
 
     # print(template, part)
 
     result = []
-    for word in words:
-        word_part = get_end_part(lt, word)
-        penalty = lt.levenshtein_distance(word_part, part)
+    for word in word_list:
+        trans, word_part = lt.get_transcription(word, get_tail=True)
+        penalty = lt.levenshtein_distance_weights(word_part, part)
         result.append([template, word, part, word_part, penalty])
 
     if debug is True:
@@ -75,10 +75,10 @@ def get_rhyme_scores_second_levenstein(template, words, debug=False):
     return result
 
 
-def my_rhyme_scores(words):
+def my_rhyme_scores(word_list):
     word = 'борода'
 
-    res = get_rhyme_scores(word, words)
+    res = get_rhyme_scores_second_levenshtein(word, word_list)
     res = pd.DataFrame(res, columns=['template', 'example', 'end', 'example_end', 'score1'])
     res = res.sort_values('score1')
     return res
