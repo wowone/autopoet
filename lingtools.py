@@ -108,6 +108,32 @@ class LingTools:
         syllables.append(''.join(current_syllable['syl']))
         return syllables
 
+    def levenshtein_distance_weights(self, a, b):
+        first = ['#'] + list(a)
+        second = ['#'] + list(b)
+
+        dp = np.zeros((len(first), len(second)))
+
+        for i in range(len(first)):
+            for j in range(len(second)):
+                if i == 0 and j == 0:
+                    dp[i][j] = 0
+                elif i == 0:
+                    dp[i][j] = j
+                elif j == 0:
+                    dp[i][j] = i
+                else:
+                    dist = self.phoneme_distance[first[i]][second[j]]
+                    dp[i][j] = min(dp[i - 1][j] + 2,
+                                   dp[i][j - 1] + 2)
+                    if first[i] == second[j]:
+                        dp[i][j] = dp[i - 1][j - 1]
+                    else:
+                        dp[i][j] = min(dp[i][j], dist)
+
+        ans = dp[len(first) - 1][len(second) - 1]
+        return ans
+
     @staticmethod
     def levenshtein_distance(a, b):
         first = ['#'] + list(a)
