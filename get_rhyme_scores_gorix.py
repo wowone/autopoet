@@ -8,7 +8,6 @@ import lingtools
 
 def lt_rhyme_scores(words):
     lt = lingtools.LingTools()
-    word = 'борода'
 
     res = lt.get_rhyme_scores(word, words)
     res = pd.DataFrame(res, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
@@ -76,20 +75,19 @@ def get_rhyme_scores_second_levenshtein(template, word_list, debug=False):
 
 
 def my_rhyme_scores(word_list):
-    word = 'борода'
-
     res = get_rhyme_scores_second_levenshtein(word, word_list)
     res = pd.DataFrame(res, columns=['template', 'example', 'end', 'example_end', 'score1'])
     res = res.sort_values('score1')
     return res
 
 
+word = 'борода'
+
 lines = list(open("word_rus.txt", "r", encoding="UTF8").readlines())
 words = list(map(lambda x: x[:-1:], lines))
 words = list(filter(lambda x: x.count('-') == 0, words))
 
 first = lt_rhyme_scores(words)
-
 second = my_rhyme_scores(words)
 
 pd.set_option('display.max_rows', None)
