@@ -81,7 +81,7 @@ def my_rhyme_scores(word_list):
     return res
 
 
-word = 'борода'
+word = 'корова'
 
 lines = list(open("word_rus.txt", "r", encoding="UTF8").readlines())
 words = list(map(lambda x: x[:-1:], lines))
