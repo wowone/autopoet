@@ -81,18 +81,21 @@ def my_rhyme_scores(word_list):
     return res
 
 
-word = 'корова'
+def show_results():
+    lines = list(open("word_rus.txt", "r", encoding="UTF8").readlines())
+    words = list(map(lambda x: x[:-1:], lines))
+    words = list(filter(lambda x: x.count('-') == 0, words))
 
-lines = list(open("word_rus.txt", "r", encoding="UTF8").readlines())
-words = list(map(lambda x: x[:-1:], lines))
-words = list(filter(lambda x: x.count('-') == 0, words))
+    first = lt_rhyme_scores(words)
+    second = my_rhyme_scores(words)
 
-first = lt_rhyme_scores(words)
-second = my_rhyme_scores(words)
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    with open('ltresult.txt', 'w', encoding='utf-8') as f:
+        print(first, file=f)
+    with open('myresult.txt', 'w', encoding='utf-8') as f:
+        print(second, file=f)
 
-pd.set_option('display.max_rows', None)
-pd.set_option('display.max_columns', None)
-with open('ltresult.txt', 'w', encoding='utf-8') as f:
-    print(first, file=f)
-with open('myresult.txt', 'w', encoding='utf-8') as f:
-    print(second, file=f)
+
+word = input()
+show_results()
