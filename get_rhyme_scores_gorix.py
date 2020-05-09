@@ -7,20 +7,15 @@ import lingtools
 
 
 def lt_rhyme_scores(words):
-    lt = lingtools.LingTools()
-
     res = lt.get_rhyme_scores(word, words)
     res = pd.DataFrame(res, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
     res = res.sort_values('score')
     return res
-    # print(res)
-
-    # assert res['word1'].to_list() == ['борода', 'провода', 'вражда', 'борта', 'вождя', 'ладах', 'морс']
 
 
-def get_end_part(lt, template):
-    if template in lt.stresses:
-        stress_position = lt.stresses[template]
+def get_end_part(lingt, template):
+    if template in lingt.stresses:
+        stress_position = lingt.stresses[template]
     elif template.count('ё'):
         stress_position = template.find('ё')
     else:
@@ -76,13 +71,13 @@ def get_rhyme_scores_second_levenshtein(template, word_list, debug=False):
 
 def my_rhyme_scores(word_list):
     res = get_rhyme_scores_second_levenshtein(word, word_list)
-    res = pd.DataFrame(res, columns=['template', 'example', 'end', 'example_end', 'score1'])
+    res = pd.DataFrame(res, columns=['template', 'mine', 'end', 'example_end', 'score1'])
     res = res.sort_values('score1')
     return res
 
 
 def show_results():
-    lines = list(open("word_rus.txt", "r", encoding="UTF8").readlines())
+    lines = list(open("word_rus_fact.txt", "r", encoding="UTF8").readlines())
     words = list(map(lambda x: x[:-1:], lines))
     words = list(filter(lambda x: x.count('-') == 0, words))
 
@@ -91,11 +86,19 @@ def show_results():
 
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
+
+    first = first.reset_index(drop=True).drop(first.columns[[2, 3, 4]], axis='columns')
+    second = second.reset_index(drop=True).drop(second.columns[[2, 3, 4]], axis='columns')
+
+    kek = pd.concat([first, second], axis=1)
+    print(kek)
+
     with open('ltresult.txt', 'w', encoding='utf-8') as f:
         print(first, file=f)
     with open('myresult.txt', 'w', encoding='utf-8') as f:
         print(second, file=f)
 
 
+lt = lingtools.LingTools()
 word = input()
 show_results()
