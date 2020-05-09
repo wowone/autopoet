@@ -8,7 +8,7 @@ import lingtools
 
 def lt_rhyme_scores(words):
     res = lt.get_rhyme_scores(word, words)
-    res = pd.DataFrame(res, columns=['word0', 'word1', 'transcription0', 'transcription1', 'score'])
+    res = pd.DataFrame(res, columns=['word', 'lt_result', 'transcription0', 'transcription1', 'score'])
     res = res.sort_values('score')
     return res
 
@@ -77,7 +77,7 @@ def my_rhyme_scores(word_list):
 
 
 def show_results():
-    lines = list(open("word_rus_fact.txt", "r", encoding="UTF8").readlines())
+    lines = list(open("word_rus.txt", "r", encoding="UTF8").readlines())
     words = list(map(lambda x: x[:-1:], lines))
     words = list(filter(lambda x: x.count('-') == 0, words))
 
@@ -90,8 +90,11 @@ def show_results():
     first = first.reset_index(drop=True).drop(first.columns[[2, 3, 4]], axis='columns')
     second = second.reset_index(drop=True).drop(second.columns[[2, 3, 4]], axis='columns')
 
-    kek = pd.concat([first, second], axis=1)
-    print(kek)
+    kek = pd.concat([first, second], axis=1).drop(["word", "template"], axis='columns')
+    # print(kek)
+    sz = kek.shape[0]
+
+    print(kek.head(15), kek[sz // 2 - 7: sz // 2 + 7], kek.tail(15), sep="\n--------\n")
 
     with open('ltresult.txt', 'w', encoding='utf-8') as f:
         print(first, file=f)
